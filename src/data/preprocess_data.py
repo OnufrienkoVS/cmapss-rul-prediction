@@ -3,7 +3,6 @@ import pandas as pd
 import logging
 from typing import Tuple, Dict, List, Optional
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class CmapssPreprocessor:
@@ -296,4 +295,5 @@ def process_all_datasets(
     return results
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     results = process_all_datasets()

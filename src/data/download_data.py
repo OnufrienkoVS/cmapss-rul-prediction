@@ -1,6 +1,10 @@
 import requests
 import zipfile
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def download_and_extract(url: str, extract_to='../../data/raw'):
     script_dir = Path(__file__).parent.absolute()
@@ -11,7 +15,7 @@ def download_and_extract(url: str, extract_to='../../data/raw'):
     filename = 'CMAPSSData.zip'
     zip_path = extract_path / filename
 
-    print(f'Загрузка {filename} с {url}...')
+    logger.info(f"Загрузка {filename} с {url}...")
 
     try:
         response = requests.get(url, stream=True)
@@ -21,16 +25,16 @@ def download_and_extract(url: str, extract_to='../../data/raw'):
         with open(zip_path, 'wb') as f:
             f.write(response.content)
         
-        print(f'Файл {filename} успешно загружен!')
-
-        print(f'Распаковка...')
+        logger.info(f"Файл {filename} успешно загружен!")
+        logger.info(f"Распаковка...")
 
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(extract_path)
         
-        print(f"Распаковка завершена в: {extract_path.absolute()}")
+        logger.info(f"Распаковка завершена в: {extract_path.absolute()}")
 
         zip_path.unlink()
+        
         
         print("\nСодержимое:")
         for item in extract_path.iterdir():
@@ -41,5 +45,6 @@ def download_and_extract(url: str, extract_to='../../data/raw'):
         print(f"Ошибка: {e}")
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     url = "https://data.nasa.gov/docs/legacy/CMAPSSData.zip"
     download_and_extract(url)
