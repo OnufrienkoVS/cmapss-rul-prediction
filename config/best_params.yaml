@@ -1,0 +1,52 @@
+FD001:
+  catboost:
+    border_count: 48
+    depth: 7
+    iterations: 750
+    l2_leaf_reg: 2.789428705259572e-08
+    learning_rate: 0.010008594974926458
+  rf:
+    max_depth: 13
+    max_features: log2
+    min_samples_leaf: 6
+    min_samples_split: 3
+    n_estimators: 200
+FD002:
+  catboost:
+    border_count: 48
+    depth: 7
+    iterations: 600
+    l2_leaf_reg: 0.007540339892874158
+    learning_rate: 0.012257154926226671
+  rf:
+    max_depth: 12
+    max_features: sqrt
+    min_samples_leaf: 5
+    min_samples_split: 3
+    n_estimators: 350
+FD003:
+  catboost:
+    border_count: 48
+    depth: 7
+    iterations: 450
+    l2_leaf_reg: 2.264973118922654
+    learning_rate: 0.01449940790972958
+  rf:
+    max_depth: 12
+    max_features: sqrt
+    min_samples_leaf: 8
+    min_samples_split: 9
+    n_estimators: 450
+FD004:
+  catboost:
+    border_count: 64
+    depth: 6
+    iterations: 550
+    l2_leaf_reg: 4.752167058010921e-06
+    learning_rate: 0.02695189375656805
+  rf:
+    max_depth: 13
+    max_features: sqrt
+    min_samples_leaf: 1
+    min_samples_split: 4
+    n_estimators: 500
