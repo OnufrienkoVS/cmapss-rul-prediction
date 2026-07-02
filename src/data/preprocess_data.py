@@ -2,6 +2,8 @@ from pathlib import Path
 import pandas as pd
 import logging
 from typing import Tuple, Dict, List, Optional
+from sklearn.preprocessing import MinMaxScaler
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,7 @@ class CmapssPreprocessor:
         self.op_cols = [f'op{i}' for i in range(1, 4)]
         self.feature_cols = self.op_cols + self.sensor_cols
         self.sensors_to_drop = None
+        self.scaler = MinMaxScaler()
 
         self.processed_data_dir.mkdir(parents=True, exist_ok=True)
 
@@ -75,6 +78,74 @@ class CmapssPreprocessor:
         df['RUL_clipped'] = df['RUL'].clip(upper=self.rul_threshold)
         
         return df
+    
+    def create_sequences(self, df: pd.DataFrame, is_test: bool = False) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+        """Создает последовательности сырых данных для нейросетей."""
+        logger.info("Создание последовательностей для глубокого обучения...")
+
+        # Определение признаковых колонок
+        actual_sensor_cols = [col for col in df.columns if col.startswith('s')]
+        actual_feature_cols = self.op_cols + actual_sensor_cols
+
+        if not is_test:
+            X_scaled = self.scaler.fit_transform(df[actual_feature_cols].values)
+            logger.info("Scaler обучен на тренировочных данных")
+        else:
+            X_scaled = self.scaler.transform(df[actual_feature_cols].values)
+            logger.info("Применен scaler, обученный на тренировочных данных, к тестовой выборке")
+
+        X_seq = []
+        y_seq = []
+
+        if not is_test:
+            # Для train все окна используем
+            for unit_id, group in df.groupby('unit'):
+                group = group.sort_values('cycle')
+                indices = group.index
+                scaled_data = X_scaled[indices]
+                rul_values = group['RUL_clipped'].values
+                
+                for i in range(len(group) - self.window_size + 1):
+                    X_seq.append(scaled_data[i:i + self.window_size])
+                    y_seq.append(rul_values[i + self.window_size - 1])
+            
+            logger.info(f"Создано {len(X_seq)} последовательностей для обучения")
+            return np.array(X_seq, dtype=np.float32), np.array(y_seq, dtype=np.float32)
+        else:
+            for unit_id, group in df.groupby('unit'):
+                group = group.sort_values('cycle')
+                indices = group.index
+                scaled_data = X_scaled[indices]
+                
+                if len(scaled_data) >= self.window_size:
+                    X_seq.append(scaled_data[-self.window_size:])
+                else:
+                    # Если данных меньше окна, то дополняем нулями
+                    pad_len = self.window_size - len(scaled_data)
+                    padded = np.vstack([np.zeros((pad_len, scaled_data.shape[1])), scaled_data])
+                    X_seq.append(padded)
+            
+            logger.info(f"Создано {len(X_seq)} последовательностей для теста")
+            return np.array(X_seq, dtype=np.float32), None
+        
+    
+    def save_sequences(self, X_seq: np.ndarray, y_seq: Optional[np.ndarray], data_type: str):
+        """Сохраняет последовательности для глубокого обучения."""
+        save_dir = self.processed_data_dir / self.dataset_name / 'sequences'
+        save_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Сохраняем X
+        np.save(save_dir / f'X_{data_type}_seq.npy', X_seq)
+        
+        # Сохраняем y
+        if y_seq is not None:
+            np.save(save_dir / f'y_{data_type}_seq.npy', y_seq)
+        
+        logger.info(f"Последовательности сохранены в {save_dir}")
+        logger.info(f"  X shape: {X_seq.shape}")
+        if y_seq is not None:
+            logger.info(f"  y shape: {y_seq.shape}")
+
     
     def extract_features(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.Series]:
         """Извлекает признаки из тренировочных данных."""
@@ -193,9 +264,13 @@ class CmapssPreprocessor:
         df = self.add_rul(df)
         X, y = self.extract_features(df)
         logger.info(f"Создано {len(X)} примеров для обучения")
+
+        # 4. Создание временных рядов для DL
+        X_seq, y_seq = self.create_sequences(df, is_test=False)
         
-        # Сохраняем обработанные данные
+        # 5. Сохраняем обработанные данные
         self.save_processed_data(X, y, 'train')
+        self.save_sequences(X_seq, y_seq, 'train')
         
         return X, y, self.sensors_to_drop
     
@@ -210,26 +285,29 @@ class CmapssPreprocessor:
         df_test = self.load_data('test')
         logger.info(f"Загружено {len(df_test)} записей")
         
-        # 2. Удаление тех же сенсоров, что и train
+        # 2. Удаление тех же сенсоров, что и в train
         if self.sensors_to_drop:
             df_test = df_test.drop(columns=self.sensors_to_drop)
             logger.info(f"Удалены сенсоры: {self.sensors_to_drop}")
         
-        # 3. Загрузка RUL (если доступно)
+        # 3. Загрузка RUL (если доступно) и извлечение признаков
         try:
             y_test = self.load_data('rul')
             logger.info(f"Загружены реальные значения RUL для теста")
+            y_test = np.clip(y_test, 0, self.rul_threshold)
         except FileNotFoundError:
             logger.warning("Файл с RUL для теста не найден.")
             y_test = None
         
-        # 4. Извлечение признаков
         X_test = self.extract_features_test(df_test)
-        
         logger.info(f"Создано {len(X_test)} примеров для тестирования")
+
+        # 4. Создание последовательностей для DL
+        X_test_seq, _ = self.create_sequences(df_test, is_test=True)
         
-        # Сохраняем обработанные данные
+        # 5. Сохраняем обработанные данные
         self.save_processed_data(X_test, y_test, 'test')
+        self.save_sequences(X_test_seq, None, 'test')
         
         return X_test, y_test
     
