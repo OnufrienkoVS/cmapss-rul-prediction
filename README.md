@@ -1,2 +1,3 @@
 # cmapss-rul-prediction
-ml-dl-rul-predictionndustrial-ai-rul-prediction
+ml-dl-rul-prediction
+industrial-ai-rul-prediction
