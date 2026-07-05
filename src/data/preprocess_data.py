@@ -5,6 +5,7 @@ from typing import Tuple, Dict, List, Optional
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GroupShuffleSplit
 import numpy as np
+import joblib
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +17,7 @@ class CmapssPreprocessor:
         script_dir = Path(__file__).parent.absolute()
 
         self.dataset_name = dataset_name
+        self.scaler_dir = (script_dir.parent.parent / 'scalers').resolve()
         self.raw_data_dir = (script_dir / raw_data_dir).resolve()
         self.processed_data_dir = (script_dir / processed_data_dir).resolve()
         self.rul_threshold = rul_threshold
@@ -32,9 +34,11 @@ class CmapssPreprocessor:
         self.scaler = StandardScaler()
 
         self.processed_data_dir.mkdir(parents=True, exist_ok=True)
+        self.scaler_dir.mkdir(parents=True, exist_ok=True)
 
         logger.info(f"Raw data directory: {self.raw_data_dir}")
         logger.info(f"Processed data directory: {self.processed_data_dir}")
+        logger.info(f"Scaler directory: {self.scaler_dir}")
         logger.info(f"Validation size: {self.val_size}")
         logger.info(f"Random state: {self.random_state}")
 
@@ -124,6 +128,9 @@ class CmapssPreprocessor:
         if fit_scaler:
             X_scaled = self.scaler.fit_transform(df_reset[actual_feature_cols].values)
             logger.info("Scaler обучен на тренировочных данных")
+            scaler_path = (self.scaler_dir / (self.dataset_name + '_scaler.pkl')).resolve()
+            joblib.dump(self.scaler, scaler_path)
+            logger.info(f"Scaler сохранен: {scaler_path}")
         else:
             X_scaled = self.scaler.transform(df_reset[actual_feature_cols].values)
             logger.info("Применен scaler, обученный на тренировочных данных")
