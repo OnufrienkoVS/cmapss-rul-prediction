@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any
 from catboost import CatBoostRegressor
+from sklearn.preprocessing import StandardScaler
 
 from app.core.config import settings
 from app.core.models import get_model_class, LSTMModel, CNN1D
@@ -19,8 +20,26 @@ class ModelLoader:
     def __init__(self):
         self._models: Dict[str, Any] = {}
         self._available_models: Dict[str, Dict] = {}
+        self._scalers: Dict[str, StandardScaler] = {}
         self._device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self._scan_available_models()
+
+    def _get_scaler(self, dataset: str) -> StandardScaler:
+        """Загружает scaler для датасета."""
+        if dataset in self._scalers:
+            return self._scalers[dataset]
+        
+        scaler_path = (settings.SCALERS_DIR / f'{dataset}_scaler.pkl').resolve()
+        if scaler_path.exists():
+            scaler = joblib.load(scaler_path)
+            self._scalers[dataset] = scaler
+            logger.info(f"✅ Scaler загружен для {dataset}")
+            return scaler
+        else:
+            logger.warning(f"⚠️ Scaler не найден для {dataset}, используется StandardScaler по умолчанию")
+            scaler = StandardScaler()
+            self._scalers[dataset] = scaler
+            return scaler
     
     def _scan_available_models(self) -> None:
         """Сканирует папку models/ и собирает метаданные."""
@@ -175,7 +194,7 @@ class ModelLoader:
         
         return np.array(features_list, dtype=np.float32)
     
-    def preprocess_for_dl(self, data: np.ndarray) -> torch.Tensor:
+    def preprocess_for_dl(self, data: np.ndarray, dataset: str) -> torch.Tensor:
         """
         Предобработка данных для DL моделей.
         
@@ -190,14 +209,23 @@ class ModelLoader:
         elif data.ndim != 3:
             raise ValueError(f"Ожидается 2D или 3D массив, получен {data.ndim}D")
         
+        # Получаем scaler для датасета
+        scaler = self._get_scaler(dataset)
+
+        normalized_batch = []
+        for i in range(data.shape[0]):
+            normalized = scaler.transform(data[i])
+            normalized_batch.append(normalized)
+        
         # Преобразуем в тензор
-        tensor = torch.FloatTensor(data).to(self._device)
+        tensor = torch.FloatTensor(np.array(normalized_batch)).to(self._device)
         return tensor
     
     def predict(self, model_key: str, data: np.ndarray) -> float:
         """Делает предсказание, автоматически загружая модель."""
         model = self.get_model(model_key)
         model_type = self._available_models[model_key]["model_type"]
+        dataset = self._available_models[model_key]["dataset"]
 
         # Проверяем размерность данных
         if data.ndim == 1:
@@ -214,7 +242,9 @@ class ModelLoader:
             prediction = model.predict(processed_data)
 
         elif model_type in ["lstm", "cnn"]:
-            tensor_data = self.preprocess_for_dl(data)
+            logger.debug(f"Data before DL preprocessing - min: {data.min():.4f}, max: {data.max():.4f}, mean: {data.mean():.4f}")
+            tensor_data = self.preprocess_for_dl(data, dataset)
+            logger.debug(f"Data after DL preprocessing - min: {tensor_data.min().item():.4f}, max: {tensor_data.max().item():.4f}, mean: {tensor_data.mean().item():.4f}")
             with torch.no_grad():
                 prediction = model(tensor_data)
                 prediction = prediction.cpu().numpy()

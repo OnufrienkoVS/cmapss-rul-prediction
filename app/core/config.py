@@ -7,6 +7,7 @@ class Settings:
     
     # Пути к данным и моделям
     MODELS_DIR = BASE_DIR / "models"
+    SCALERS_DIR = BASE_DIR / "scalers"
     DATA_DIR = BASE_DIR / "data" / "processed"
     CONFIG_DIR = BASE_DIR / "config"
     
@@ -63,3 +64,4 @@ if __name__ == "__main__":
     print(f"MODELS_DIR: {settings.MODELS_DIR}")
     print(f"DATA_DIR: {settings.DATA_DIR}")
     print(f"Model paths: {settings.model_paths}")
+    print(f"SCALERS_DIR: {settings.SCALERS_DIR}")

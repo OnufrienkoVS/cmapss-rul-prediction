@@ -35,7 +35,7 @@ class LSTMModel(nn.Module):
 
 
 class CNN1D(nn.Module):
-    def __init__(self, input_size, window_size, num_filters=64, kernel_size=3, dropout=0.3):
+    def __init__(self, input_size, window_size=30, num_filters=64, kernel_size=3, dropout=0.3):
         super(CNN1D, self).__init__()
         
         self.conv1 = nn.Conv1d(input_size, num_filters, kernel_size + 4, padding='same')
