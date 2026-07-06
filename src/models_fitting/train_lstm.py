@@ -3,13 +3,13 @@ import logging
 import torch
 from pathlib import Path
 
-from utils.model_utils import (
+from models_fitting.utils.model_utils import (
     save_model,
     train_model,
     evaluate_on_test
 )
 
-from utils.data_utils import (
+from models_fitting.utils.data_utils import (
     load_data,
     create_dataloaders
 )

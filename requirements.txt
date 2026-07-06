@@ -1,0 +1,23 @@
+# core
+numpy>=2.0.0
+pandas>=2.0.0
+scikit-learn>=1.6.0
+joblib<1.5
+pyyaml<7.0
+
+# additional ML models
+catboost>=1.2.0
+torch>=2.5.0
+
+# API
+fastapi<0.116
+uvicorn[standard]<0.35
+pydantic<2.11
+
+# Streamlit
+streamlit<1.42
+requests<2.33
+
+# development
+jupyter>=1.0.0
+ipykernel>=6.0.0

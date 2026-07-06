@@ -356,6 +356,10 @@ class ModelLoader:
             processed_data = self.preprocess_for_classical_model(data)
             prediction = model.predict(processed_data)
 
+            if isinstance(prediction, np.ndarray):
+                return float(prediction[0])
+            return float(prediction)
+
         elif model_type in ["lstm", "cnn"]:
             logger.debug(f"Data before DL preprocessing - min: {data.min():.4f}, max: {data.max():.4f}, mean: {data.mean():.4f}")
             tensor_data = self.preprocess_for_dl(data, dataset)
@@ -364,12 +368,13 @@ class ModelLoader:
                 prediction = model(tensor_data)
                 prediction = prediction.cpu().numpy()
 
+                prediction_flat = prediction.flatten()
+                prediction_value = float(prediction_flat[0])
+
+                return prediction_value
+
         else:
             raise ValueError(f"Неизвестный тип модели: {model_type}")
-        
-        if isinstance(prediction, np.ndarray):
-            return float(prediction[0])
-        return float(prediction)
 
 
 model_loader = ModelLoader()
