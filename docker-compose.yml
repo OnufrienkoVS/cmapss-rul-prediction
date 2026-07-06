@@ -1,0 +1,37 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: rul-prediction-api:latest
+    container_name: rul-api
+    ports:
+      - "8000:8000"
+    volumes: # Модели и скейлеры
+      - ./models:/app/models
+      - ./scalers:/app/scalers
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    networks:
+      - rul-network
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    image: rul-prediction-streamlit:latest
+    container_name: rul-streamlit
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+    environment:
+      - API_URL=http://api:8000
+    restart: unless-stopped
+    networks:
+      - rul-network
+
+networks:
+  rul-network:
+    driver: bridge

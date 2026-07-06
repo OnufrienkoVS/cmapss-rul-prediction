@@ -2,11 +2,15 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import requests
+import os
+
+# Определяем URL API
+API_URL = os.environ.get("API_URL", "http://localhost:8000")
 
 # Настройка страницы
 st.set_page_config(
     page_title="RUL Prediction",
-    page_icon=":material/monitor_heart:",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -20,30 +24,30 @@ if "use_random" not in st.session_state:
     st.session_state["use_random"] = False
 
 # Заголовок
-st.title(":material/monitor_heart: Прогнозирование остаточного ресурса (RUL)")
+st.title("Прогнозирование остаточного ресурса (RUL)")
 st.markdown("### Турбореактивные двигатели | NASA C-MAPSS")
 st.markdown("---")
 
 # Боковая панель
 with st.sidebar:
-    st.header(":material/settings: Параметры")
+    st.header("⚙️ Параметры")
     
     # Выбор датасета
     dataset = st.selectbox(
-        ":material/dataset: Датасет",
+        "🗂️ Датасет",
         ["FD001", "FD002", "FD003", "FD004"],
         help="Выберите датасет для предсказания"
     )
     
     # Выбор модели
     model_type = st.selectbox(
-        ":material/model_training: Модель",
+        "🧠 Модель",
         ["catboost", "rf", "lstm", "cnn"],
         help="Выберите модель для предсказания"
     )
     
     st.markdown("---")
-    st.markdown("### :material/upload_file: Загрузка данных")
+    st.markdown("### 📁 Загрузка данных")
     
     # Загрузка файла
     uploaded_file = st.file_uploader(
@@ -54,9 +58,9 @@ with st.sidebar:
     
     # Генерация случайных данных
     st.markdown("---")
-    st.markdown("### :material/casino: Или сгенерируйте пример")
+    st.markdown("### 🎲 Или сгенерируйте пример")
     
-    if st.button(":material/wand_stars: Случайные данные", use_container_width=True):
+    if st.button("Случайные данные", use_container_width=True):
         # Генерируем данные (все 24 признака) и сохраняем состояние
         st.session_state["data"] = np.random.randn(30, 24).tolist()
         st.session_state["data_source"] = "random"
@@ -64,7 +68,7 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.markdown("### :material/info: Информация")
+    st.markdown("### ℹ️ Информация")
     st.markdown(f"**Модель:** {model_type}")
     st.markdown(f"**Датасет:** {dataset}")
     
@@ -77,14 +81,14 @@ with st.sidebar:
     }
     st.markdown(f"**Признаков:** {feature_counts.get(dataset, 24)}")
     st.markdown(f"**Окно:** 30 временных шагов")
-    st.info(":material/notification_important: Для предсказания используется **последнее окно** из 30 шагов")
+    st.info("Для предсказания используется **последнее окно** из 30 шагов")
 
 # Основная область
 col1, col2 = st.columns([2, 1])
 
 # Отображение данных
 with col1:
-    st.subheader(":material/data_table: Данные")
+    st.subheader("Данные")
     
     # Загрузка из файла
     if uploaded_file is not None:
@@ -144,27 +148,29 @@ with col1:
         df = pd.DataFrame(data)
         st.dataframe(df.head(10))
         st.caption(f"Всего строк: {len(df)}")
-        st.info(f":material/casino: Сгенерировано {len(data)} случайных шагов, {len(data[0]) if data else 0} признака")
+        st.info(f"🎲 Сгенерировано {len(data)} случайных шагов, {len(data[0]) if data else 0} признака")
     
     else:
         st.info('Загрузите файл или сгенерируйте пример')
         data = None
 
 with col2:
-    st.subheader(":material/target: Предсказание")
+    st.subheader("Предсказание")
     
     # Получаем данные из состояния
     data = st.session_state.get("data")
     data_source = st.session_state.get("data_source")
     
     # Кнопка предсказания
-    if st.button(":material/play_arrow: Предсказать RUL", type="primary", use_container_width=True):
+    if st.button("▶︎ Предсказать RUL", type="primary", use_container_width=True):
         if data is not None:
             with st.spinner("Загрузка модели и предсказание..."):
                 try:
+                    url = f"{API_URL}/api/v1/predict"
+                    
                     # Отправка запроса к API
                     response = requests.post(
-                        "http://localhost:8000/api/v1/predict",
+                        url,
                         json={
                             "dataset": dataset,
                             "model_type": model_type,
@@ -191,7 +197,7 @@ with col2:
                         st.caption(f"Статус: {result['status']}")
                         if data_source:
                             st.caption(f"Источник данных: {data_source}")
-                        st.caption(":material/info: Использовано последнее окно из 30 шагов")
+                        st.caption("ℹ️ Использовано последнее окно из 30 шагов")
                         
                     else:
                         st.error(f"❌ Ошибка API: {response.status_code}")
