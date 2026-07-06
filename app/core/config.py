@@ -24,6 +24,7 @@ class Settings:
     # Колонки признаков
     OP_COLS = [f"op{i}" for i in range(1, 4)]
     SENSOR_COLS = [f"s{i}" for i in range(1, 22)]
+    RAW_COLS = ['unit', 'cycle'] + OP_COLS + SENSOR_COLS
     
     # Сенсоры, которые были удалены для каждого датасета
     SENSORS_TO_DROP = {
@@ -52,6 +53,18 @@ class Settings:
         sensor_cols = [col for col in self.SENSOR_COLS 
                       if col not in self.SENSORS_TO_DROP.get(dataset, [])]
         return self.OP_COLS + sensor_cols
+    
+    def get_full_feature_cols(self) -> List[str]:
+        """Возвращает полный список признаков (все сенсоры + операции)."""
+        return self.OP_COLS + self.SENSOR_COLS
+    
+    def get_sensors_to_drop(self, dataset: str) -> List[str]:
+        """Возвращает список сенсоров, которые нужно удалить для датасета."""
+        return self.SENSORS_TO_DROP.get(dataset, [])
+
+    def get_raw_cols(self) -> List[str]:
+        """Возвращает полный список колонок сырых данных (unit, cycle, op, sensors)."""
+        return self.RAW_COLS
     
     def get_feature_count(self, dataset: str) -> int:
         """Возвращает количество признаков для датасета."""

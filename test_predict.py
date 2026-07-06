@@ -15,15 +15,6 @@ def load_real_sequence(dataset="FD001", unit_id=1, window_size=30):
     df = df.iloc[:, :26]
     df.columns = ['unit', 'cycle'] + [f'op{i}' for i in range(1, 4)] + [f's{i}' for i in range(1, 22)]
     
-    sensors_to_drop = {
-        "FD001": ["s1", "s5", "s6", "s10", "s16", "s18", "s19"],
-        "FD002": [],
-        "FD003": ["s1", "s5", "s16", "s18", "s19"],
-        "FD004": []
-    }
-    drop_cols = sensors_to_drop.get(dataset, [])
-    df = df.drop(columns=drop_cols, errors='ignore')
-    
     # Выбираем двигатель
     unit_data = df[df['unit'] == unit_id].sort_values('cycle')
     len_data = len(unit_data)
@@ -31,7 +22,7 @@ def load_real_sequence(dataset="FD001", unit_id=1, window_size=30):
     if len_data < window_size:
         raise ValueError(f"Двигатель {unit_id} имеет только {len(unit_data)} записей, нужно {window_size}")
     
-    start = randint(0, len_data - window_size)
+    start = randint(0, min(len_data - window_size, 100))
     
     sequence = unit_data.iloc[start:start + window_size].copy()
 
@@ -39,9 +30,7 @@ def load_real_sequence(dataset="FD001", unit_id=1, window_size=30):
     sequence['rul'] = max_cycle - sequence['cycle']
     
     # Берем только признаки (op + sensors)
-    actual_sensor_cols = [col for col in sequence.columns if col.startswith('s')]
-    feature_cols = ['op1', 'op2', 'op3'] + actual_sensor_cols
-    data = sequence[feature_cols].values.tolist()
+    data = sequence.drop('rul', axis=1).values.tolist()
 
     true_rul = sequence['rul'].iloc[-1]
     

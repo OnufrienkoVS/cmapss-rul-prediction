@@ -3,7 +3,7 @@ import torch
 import numpy as np
 import logging
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, List
 from catboost import CatBoostRegressor
 from sklearn.preprocessing import StandardScaler
 
@@ -23,6 +23,22 @@ class ModelLoader:
         self._scalers: Dict[str, StandardScaler] = {}
         self._device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self._scan_available_models()
+
+    def _get_expected_features(self, dataset: str) -> List[str]:
+        """Возвращает список ожидаемых признаков для датасета."""
+        return settings.get_actual_feature_cols(dataset)
+    
+    def _get_full_features(self) -> List[str]:
+        """Возвращает полный список признаков (все сенсоры + операции)."""
+        return settings.get_full_feature_cols()
+    
+    def _get_raw_cols(self) -> List[str]:
+        """Возвращает полный список колонок сырых данных."""
+        return settings.get_raw_cols()
+
+    def _get_sensors_to_drop(self, dataset: str) -> List[str]:
+        """Возвращает список сенсоров, которые нужно удалить для датасета."""
+        return settings.SENSORS_TO_DROP.get(dataset, [])
 
     def _get_scaler(self, dataset: str) -> StandardScaler:
         """Загружает scaler для датасета."""
@@ -144,6 +160,80 @@ class ModelLoader:
                 self._available_models[model_key]["loaded"] = False
             logger.info(f"Модель выгружена: {model_key}")
 
+    def preprocess_input_data(self, data: np.ndarray, dataset: str) -> np.ndarray:
+        """
+        Предобработка входных данных:
+        1. Проверяет количество признаков
+            - Если кол-во признаков совпадает с датасетом - ничего не делает
+            - Если все признаки - удаляет лишние сенсоры
+            - Если признаков меньше - ошибка
+        
+        Args:
+            data: 2D массив (window_size, n_features)
+            dataset: Название датасета
+        
+        Returns:
+            2D массив с правильным количеством признаков
+        """
+        if data.ndim != 2:
+            raise ValueError(f"Ожидается 2D массив, получен {data.ndim}D")
+        
+        n_features = data.shape[1]
+        expected_features = len(self._get_expected_features(dataset))
+        full_features = len(self._get_full_features())
+        raw_cols = len(self._get_raw_cols())
+        
+        logger.debug(f"Входные данные: {n_features} признаков, ожидается {expected_features}")
+        
+        # Ожидаемое кол-во признаков
+        if n_features == expected_features:
+            logger.debug("Количество признаков совпадает с ожидаемым")
+            return data
+        
+        # Полный набор признаков (все сенсоры + операции)
+        elif n_features == full_features:
+            logger.info(f"Обнаружены все {full_features} признаков, удаляем лишние сенсоры...")
+            
+            # Получаем полный список признаков
+            full_feature_names = self._get_full_features()
+            expected_feature_names = self._get_expected_features(dataset)
+            
+            # Определяем индексы признаков, которые нужно оставить
+            keep_indices = []
+            for feature in expected_feature_names:
+                keep_indices.append(full_feature_names.index(feature))
+            
+            # Оставляем только нужные признаки
+            data_filtered = data[:, keep_indices]
+            logger.info(f"Удалено {n_features - len(keep_indices)} признаков, осталось {len(keep_indices)}")
+            
+            return data_filtered
+        
+        # Сырые данные с unit и cycle (26 колонок)
+        elif n_features == raw_cols:
+            logger.info(f"Обнаружены сырые данные с {raw_cols} колонками (unit, cycle, op, sensors)")
+            
+            raw_col_names = self._get_raw_cols()
+            expected_feature_names = self._get_expected_features(dataset)
+            
+            # Определяем индексы признаков, которые нужно оставить
+            keep_indices = []
+            for feature in expected_feature_names:
+                keep_indices.append(raw_col_names.index(feature))
+            
+            data_filtered = data[:, keep_indices]
+            logger.info(f"Удалено {n_features - len(keep_indices)} колонок (unit, cycle и лишние сенсоры), осталось {len(keep_indices)}")
+            
+            return data_filtered
+        
+        # Если количество признаков не совпадает ни с одним из вариантов
+        else:
+            raise ValueError(
+                f"Неверное количество признаков: {n_features}. "
+                f"Ожидается {expected_features} (для {dataset}) "
+                f"или {full_features} (полный набор)."
+            )
+    
     def extract_features_from_sequence(self, data: np.ndarray) -> np.ndarray:
         """
         Извлекает статистические признаки из последовательности.
@@ -237,6 +327,31 @@ class ModelLoader:
         else:
             raise ValueError(f"Ожидается 1D, 2D или 3D массив, получен {data.ndim}D")
         
+        # Проверка и удаление лишних признаков
+        if model_type in ["catboost", "rf"]:
+            if data.ndim == 3:
+                processed_batch = []
+                for i in range(data.shape[0]):
+                    processed = self.preprocess_input_data(data[i], dataset)
+                    processed_batch.append(processed)
+                data = np.array(processed_batch)
+            else:
+                data = self.preprocess_input_data(data, dataset)
+        
+        elif model_type in ["lstm", "cnn"]:
+            if data.ndim == 3:
+                processed_batch = []
+                for i in range(data.shape[0]):
+                    processed = self.preprocess_input_data(data[i], dataset)
+                    processed_batch.append(processed)
+                data = np.array(processed_batch)
+            elif data.ndim == 2:
+                data = self.preprocess_input_data(data, dataset)
+                data = data.reshape(1, *data.shape)
+            else:
+                raise ValueError(f"Для DL моделей ожидается 2D или 3D массив")
+        
+        # Основная предобработка и инференс
         if model_type in ["catboost", "rf"]:
             processed_data = self.preprocess_for_classical_model(data)
             prediction = model.predict(processed_data)
