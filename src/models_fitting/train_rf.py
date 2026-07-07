@@ -43,7 +43,7 @@ def train_and_save(dataset: str, config_path: str = '../../config/best_params.ya
         random_state=0,
         n_jobs=-1
     )
-    model.fit(X_train, y_train)
+    model.fit(X_train.values, y_train.values)
     logger.info(f"Модель обучена!")
     
     # Сохранение модели
