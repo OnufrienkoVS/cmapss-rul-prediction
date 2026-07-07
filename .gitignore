@@ -1,5 +1,9 @@
 data/*
 *.ipynb_checkpoints/
 __pycache__/
-models/
 scalers/
+models/*
+
+!models/catboost_*.cbm
+!models/lstm_*.pt
+!models/cnn_*.pt
