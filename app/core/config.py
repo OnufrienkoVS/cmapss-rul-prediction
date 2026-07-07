@@ -41,8 +41,10 @@ class Settings:
         for model_type in self.AVAILABLE_MODEL_TYPES:
             paths[model_type] = {}
             for dataset in self.AVAILABLE_DATASETS:
-                if model_type == "catboost" or model_type == "rf":
+                if model_type == "rf":
                     ext = "pkl"
+                elif model_type == "catboost":
+                    ext = "cbm"
                 else:
                     ext = "pt"
                 paths[model_type][dataset] = self.MODELS_DIR / f"{model_type}_{dataset}.{ext}"

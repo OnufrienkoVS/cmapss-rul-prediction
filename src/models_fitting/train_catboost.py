@@ -47,7 +47,7 @@ def train_and_save(dataset: str, config_path: str = '../../config/best_params.ya
     logger.info(f"Модель обучена!")
     
     # Сохранение модели
-    model_path = (script_dir / model_dir / f'catboost_{dataset}.pkl').resolve()
+    model_path = (script_dir / model_dir / f'catboost_{dataset}.cbm').resolve()
     model_path.parent.mkdir(parents=True, exist_ok=True)
     model.save_model(str(model_path))
     logger.info(f"Модель сохранена: {model_path}")
